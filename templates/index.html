@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>総会議案書 文章校正アプリ</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", sans-serif;
+      background: #f0f4f8;
+      color: #2d3748;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a365d;
+      color: #fff;
+      padding: 1.25rem 2rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    header h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.05em; }
+    header p  { font-size: 0.8rem; color: #bee3f8; margin-top: 0.2rem; }
+
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    /* ── Upload Card ── */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a365d;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 2px solid #bee3f8;
+    }
+
+    .drop-zone {
+      border: 2px dashed #90cdf4;
+      border-radius: 10px;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .drop-zone.dragover { border-color: #2b6cb0; background: #ebf8ff; }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .drop-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .drop-zone p { color: #718096; font-size: 0.9rem; }
+    .drop-zone strong { color: #2b6cb0; }
+
+    #file-info {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: #ebf8ff;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      color: #2c5282;
+    }
+    #file-info span { font-weight: 600; }
+
+    .btn-primary {
+      display: block;
+      width: 100%;
+      margin-top: 1.25rem;
+      padding: 0.85rem;
+      background: #2b6cb0;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-primary:hover:not(:disabled) { background: #1a4a8a; }
+    .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+    .btn-primary:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    /* ── Loading Overlay ── */
+    #loading {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(26,54,93,0.55);
+      backdrop-filter: blur(3px);
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    #loading.active { display: flex; }
+    .spinner {
+      width: 56px; height: 56px;
+      border: 5px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { color: #fff; margin-top: 1.2rem; font-size: 1rem; font-weight: 600; }
+    #loading small { color: #bee3f8; margin-top: 0.4rem; font-size: 0.82rem; }
+
+    /* ── Results ── */
+    #results { display: none; }
+
+    .summary {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1rem 1.5rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+    }
+    .summary.has-corrections { background: #f0fff4; border: 1px solid #9ae6b4; }
+    .summary.no-corrections  { background: #ebf8ff; border: 1px solid #90cdf4; }
+    .summary-icon { font-size: 2rem; }
+    .summary-count { font-size: 1.5rem; font-weight: 800; color: #276749; }
+    .summary.no-corrections .summary-count { color: #2b6cb0; }
+    .summary-label { font-size: 0.85rem; color: #4a5568; margin-top: 0.15rem; }
+
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.5rem;
+      background: #276749;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+    }
+    .download-btn:hover { background: #1c4532; }
+
+    /* ── Corrections Table ── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    thead th {
+      background: #1a365d;
+      color: #fff;
+      padding: 0.65rem 0.8rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+    }
+    tbody tr { border-bottom: 1px solid #e2e8f0; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:nth-child(even) { background: #f7fafc; }
+    tbody td { padding: 0.65rem 0.8rem; vertical-align: top; line-height: 1.6; }
+    .col-no    { width: 3rem; color: #718096; text-align: center; }
+    .col-orig  { width: 35%; }
+    .col-corr  { width: 35%; }
+    .col-reason{ width: auto; color: #4a5568; font-size: 0.82rem; }
+
+    .deleted { background: #fed7d7; color: #c53030; text-decoration: line-through; border-radius: 2px; padding: 0 1px; }
+    .added   { background: #c6f6d5; color: #276749; border-radius: 2px; padding: 0 1px; }
+
+    /* ── Error ── */
+    #error-box {
+      display: none;
+      padding: 1rem 1.25rem;
+      background: #fff5f5;
+      border: 1px solid #feb2b2;
+      border-radius: 8px;
+      color: #c53030;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: #a0aec0;
+      font-size: 0.78rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>総会議案書 文章校正アプリ</h1>
+  <p>マンション管理組合の総会議案書をアップロードして、書式を崩さずに文章を校正します</p>
+</header>
+
+<!-- Loading overlay -->
+<div id="loading">
+  <div class="spinner"></div>
+  <p>文章を校正しています…</p>
+  <small>Claude AI が誤字・文法・専門用語を確認中です</small>
+</div>
+
+<main>
+  <!-- Upload Card -->
+  <div class="card">
+    <div class="card-title">📄 ファイルのアップロード</div>
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept=".docx">
+      <div class="drop-icon">📂</div>
+      <p><strong>クリックしてファイルを選択</strong>またはここにドラッグ＆ドロップ</p>
+      <p style="margin-top:0.5rem; font-size:0.78rem; color:#a0aec0;">対応形式：Word文書（.docx）　最大50MB</p>
+    </div>
+    <div id="file-info"></div>
+    <div id="error-box"></div>
+    <button class="btn-primary" id="submit-btn" disabled>校正を開始する</button>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="card">
+      <div class="card-title">✅ 校正結果</div>
+
+      <div id="summary-box" class="summary"></div>
+
+      <div style="margin-bottom:1.25rem;">
+        <button class="download-btn" id="download-btn">
+          ⬇️ 校正済みファイルをダウンロード
+        </button>
+      </div>
+
+      <div id="changes-section" style="display:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-no">#</th>
+                <th class="col-orig">修正前</th>
+                <th class="col-corr">修正後</th>
+                <th class="col-reason">修正理由</th>
+              </tr>
+            </thead>
+            <tbody id="changes-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Powered by Claude AI（claude-opus-4-7）　|　マンション管理組合 総会議案書 文章校正システム</footer>
+
+<script>
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const fileInfo   = document.getElementById('file-info');
+  const errorBox   = document.getElementById('error-box');
+  const submitBtn  = document.getElementById('submit-btn');
+  const loading    = document.getElementById('loading');
+  const results    = document.getElementById('results');
+  const summaryBox = document.getElementById('summary-box');
+  const changesSection = document.getElementById('changes-section');
+  const changesBody = document.getElementById('changes-body');
+  const downloadBtn = document.getElementById('download-btn');
+
+  let selectedFile = null;
+  let docData = null;
+  let docFilename = '';
+
+  // ── File selection ──
+  fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+
+  function handleFile(file) {
+    hideError();
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      showError('.docxファイルのみ対応しています。');
+      return;
+    }
+    selectedFile = file;
+    const sizeStr = file.size < 1024 * 1024
+      ? `${(file.size / 1024).toFixed(1)} KB`
+      : `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+    fileInfo.innerHTML = `📄 <span>${escHtml(file.name)}</span>　${sizeStr}`;
+    fileInfo.style.display = 'block';
+    submitBtn.disabled = false;
+    results.style.display = 'none';
+  }
+
+  // ── Submit ──
+  submitBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    hideError();
+    loading.classList.add('active');
+    submitBtn.disabled = true;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const res = await fetch('/correct', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        showError(data.error || 'エラーが発生しました。');
+        return;
+      }
+
+      docData = data.document;
+      docFilename = data.filename;
+      renderResults(data);
+    } catch (err) {
+      showError('通信エラーが発生しました。ネットワーク接続を確認してください。');
+    } finally {
+      loading.classList.remove('active');
+      submitBtn.disabled = false;
+    }
+  });
+
+  function renderResults(data) {
+    const count = data.correction_count;
+    const changes = data.changes || [];
+
+    if (count > 0) {
+      summaryBox.className = 'summary has-corrections';
+      summaryBox.innerHTML = `
+        <div class="summary-icon">✏️</div>
+        <div>
+          <div class="summary-count">${count}箇所</div>
+          <div class="summary-label">の修正が行われました</div>
+        </div>`;
+    } else {
+      summaryBox.className = 'summary no-corrections';
+      summaryBox.innerHTML = `
+        <div class="summary-icon">✅</div>
+        <div>
+          <div class="summary-count">修正不要</div>
+          <div class="summary-label">文章に誤りは見つかりませんでした</div>
+        </div>`;
+    }
+
+    if (changes.length > 0) {
+      changesBody.innerHTML = changes.map((c, i) => {
+        const { origHtml, corrHtml } = highlightDiff(c.original, c.corrected);
+        return `<tr>
+          <td class="col-no">${i + 1}</td>
+          <td class="col-orig">${origHtml}</td>
+          <td class="col-corr">${corrHtml}</td>
+          <td class="col-reason">${escHtml(c.reason)}</td>
+        </tr>`;
+      }).join('');
+      changesSection.style.display = 'block';
+    } else {
+      changesSection.style.display = 'none';
+    }
+
+    results.style.display = 'block';
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Download ──
+  downloadBtn.addEventListener('click', () => {
+    if (!docData) return;
+    const bytes = atob(docData);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    const blob = new Blob([arr], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = docFilename;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // ── Diff highlighting (prefix/suffix approach) ──
+  function highlightDiff(original, corrected) {
+    // Find common prefix length
+    let pLen = 0;
+    while (pLen < original.length && pLen < corrected.length && original[pLen] === corrected[pLen]) pLen++;
+
+    // Find common suffix length (from remaining text after prefix)
+    let sLen = 0;
+    const maxS = Math.min(original.length - pLen, corrected.length - pLen);
+    while (sLen < maxS && original[original.length - 1 - sLen] === corrected[corrected.length - 1 - sLen]) sLen++;
+
+    const prefix = escHtml(original.slice(0, pLen));
+    const suffix = escHtml(original.slice(original.length - sLen || original.length));
+
+    const origMid = original.slice(pLen, sLen ? -sLen : original.length);
+    const corrMid = corrected.slice(pLen, sLen ? -sLen : corrected.length);
+
+    const origHtml = prefix
+      + (origMid ? `<span class="deleted">${escHtml(origMid)}</span>` : '')
+      + suffix;
+    const corrHtml = prefix
+      + (corrMid ? `<span class="added">${escHtml(corrMid)}</span>` : '')
+      + suffix;
+
+    return { origHtml, corrHtml };
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function showError(msg) {
+    errorBox.textContent = '⚠️ ' + msg;
+    errorBox.style.display = 'block';
+  }
+  function hideError() {
+    errorBox.style.display = 'none';
+  }
+</script>
+</body>
+</html>
